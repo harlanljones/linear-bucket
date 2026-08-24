@@ -64,6 +64,16 @@ class TitleUpdate:
     old_title: str
     new_title: str
     progress: Progress
+    old_percent: int | None
+    new_percent: int | None
+
+    def describe(self) -> str:
+        """Summarise the change without revealing the issue title."""
+        return f"{self.identifier}: {_percent_label(self.old_percent)} -> {_percent_label(self.new_percent)}"
+
+
+def _percent_label(percent: int | None) -> str:
+    return "no prefix" if percent is None else f"{percent}%"
 
 
 @dataclass
@@ -114,13 +124,11 @@ class ProgressSync:
                 report.parents_skipped += 1
                 continue
 
-            logger.info(
-                "%s %s: %r -> %r",
-                "Would update" if self._config.dry_run else "Updating",
-                update.identifier,
-                update.old_title,
-                update.new_title,
-            )
+            verb = "Would update" if self._config.dry_run else "Updating"
+            # Issue titles are omitted at INFO: scheduled runs commonly log to
+            # CI, where the output is readable by anyone with repo access.
+            logger.info("%s %s", verb, update.describe())
+            logger.debug("%s %s: %r -> %r", verb, update.identifier, update.old_title, update.new_title)
             if not self._config.dry_run:
                 self._update_title(update)
             report.updates.append(update)
@@ -143,17 +151,20 @@ class ProgressSync:
         children = self._children_of(parent)
         progress = count_progress(children)
         title = parent.get("title") or ""
+        old_percent = parse_prefix(title)
 
         if progress.total == 0:
             # Every sub-issue was canceled; drop a stale prefix rather than
             # claiming 0% progress on work that no longer exists.
+            new_percent = None
             new_title = strip_prefix(title).strip()
             if new_title == title:
                 return None
         else:
-            if parse_prefix(title) == progress.percent:
+            new_percent = progress.percent
+            if old_percent == new_percent:
                 return None
-            new_title = apply_prefix(title, progress.percent)
+            new_title = apply_prefix(title, new_percent)
             if new_title == title:
                 return None
 
@@ -163,6 +174,8 @@ class ProgressSync:
             old_title=title,
             new_title=new_title,
             progress=progress,
+            old_percent=old_percent,
+            new_percent=new_percent,
         )
 
     def _children_of(self, parent: Mapping[str, Any]) -> list[Mapping[str, Any]]:

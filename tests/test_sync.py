@@ -133,6 +133,38 @@ class ProgressSyncTests(unittest.TestCase):
         )
         self.assertEqual(page_size, 50)
 
+    def test_info_logs_omit_issue_titles(self):
+        # Scheduled runs log to CI, so titles must not appear at the default level.
+        client = FakeClient([parent("p1", "Secret codename", [child("completed")])])
+
+        with self.assertLogs("parent_progress_sync.sync", level="INFO") as logs:
+            ProgressSync(client, config()).run()
+
+        self.assertNotIn("Secret codename", "\n".join(logs.output))
+        self.assertIn("Updating P1: no prefix -> 100%", "\n".join(logs.output))
+
+    def test_debug_logs_include_titles(self):
+        client = FakeClient([parent("p1", "Secret codename", [child("completed")])])
+
+        with self.assertLogs("parent_progress_sync.sync", level="DEBUG") as logs:
+            ProgressSync(client, config()).run()
+
+        self.assertIn("Secret codename", "\n".join(logs.output))
+
+    def test_describe_reports_percentage_transition(self):
+        client = FakeClient([parent("p1", "[025%] Ship login", [child("completed")])])
+
+        report = ProgressSync(client, config()).run()
+
+        self.assertEqual(report.updates[0].describe(), "P1: 25% -> 100%")
+
+    def test_describe_reports_dropped_prefix(self):
+        client = FakeClient([parent("p1", "[050%] Ship login", [child("canceled")])])
+
+        report = ProgressSync(client, config()).run()
+
+        self.assertEqual(report.updates[0].describe(), "P1: 50% -> no prefix")
+
     def test_failed_mutation_raises(self):
         client = FakeClient([parent("p1", "Ship login", [child("completed")])])
         client.execute = lambda query, variables=None: {"issueUpdate": {"success": False}}

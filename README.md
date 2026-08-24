@@ -44,7 +44,8 @@ environment, nothing is stored in the repo.
 ```bash
 python -m parent_progress_sync --dry-run          # preview every change
 python -m parent_progress_sync                    # apply
-python -m parent_progress_sync --team ENG -v      # one team, debug logging
+python -m parent_progress_sync --team ENG         # one team only
+python -m parent_progress_sync -v                 # debug logging (prints titles)
 ```
 
 Always start with `--dry-run` against a new workspace — the sync rewrites issue
@@ -52,6 +53,32 @@ titles.
 
 `.github/workflows/sync.yml` runs it hourly and can be triggered manually with
 a dry-run toggle.
+
+## Privacy and credentials
+
+This tool reads your issue tracker, so be deliberate about where it runs and
+where its output goes.
+
+**Logs never contain issue titles by default.** At the default level the sync
+reports only identifiers and percentages:
+
+```
+INFO Updating ENG-42: 25% -> 67%
+```
+
+Full before/after titles appear only under `--verbose`. Don't pass `--verbose`
+in a scheduled job whose logs are readable by a wider audience than your Linear
+workspace — **GitHub Actions logs on a public repository are visible to
+anyone**, and are retained for 90 days by default. Error text from the API is
+truncated for the same reason, since it can echo the request back into the log.
+
+**The API key needs write access** to rename issues. Store it as an Actions
+secret, never in the repo. Anyone who can push a workflow to the repository can
+use that secret to read and modify your Linear issues, so on a public repo keep
+`Settings -> Actions -> Fork pull request workflows` at its restrictive default
+and treat push access as equivalent to Linear write access.
+
+Scope the blast radius with `LINEAR_TEAM_KEY` if only one team needs syncing.
 
 ## API handling
 
@@ -67,3 +94,7 @@ python -m unittest discover -s tests -t .
 ```
 
 No third-party dependencies — the client is built on `urllib`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

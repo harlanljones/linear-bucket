@@ -13,6 +13,9 @@ USER_AGENT = "parent-progress-sync/1.0"
 RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 RETRYABLE_ERROR_CODES = frozenset({"RATELIMITED", "INTERNAL_SERVER_ERROR"})
 
+#: Error text is bounded because it can echo the request back into logs.
+MAX_ERROR_CHARS = 300
+
 
 class LinearError(RuntimeError):
     """Base class for Linear API failures."""
@@ -100,7 +103,9 @@ class LinearClient:
                 _retry_after(response.headers),
             )
         if response.status >= 400:
-            raise LinearAPIError(f"Linear API returned HTTP {response.status}: {response.body}")
+            raise LinearAPIError(
+                f"Linear API returned HTTP {response.status}: {_truncate(response.body)}"
+            )
 
         try:
             document = json.loads(response.body)
@@ -109,7 +114,7 @@ class LinearClient:
 
         errors = document.get("errors")
         if errors:
-            message = "; ".join(str(error.get("message", error)) for error in errors)
+            message = _truncate("; ".join(str(error.get("message", error)) for error in errors))
             if any(_error_code(error) in RETRYABLE_ERROR_CODES for error in errors):
                 raise RateLimitError(message, _retry_after(response.headers))
             raise LinearAPIError(message)
@@ -149,6 +154,12 @@ class LinearClient:
         if retry_after is not None:
             return retry_after
         return self._base_backoff * (2**attempt)
+
+
+def _truncate(text: str, limit: int = MAX_ERROR_CHARS) -> str:
+    """Bound error text, which can echo request variables into logs."""
+    text = text.strip()
+    return text if len(text) <= limit else text[:limit] + "... (truncated)"
 
 
 def _dig(data: Mapping[str, Any], path: Sequence[str]) -> Mapping[str, Any]:

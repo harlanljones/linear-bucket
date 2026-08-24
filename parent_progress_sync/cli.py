@@ -28,7 +28,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="KEY",
         help="limit the sync to one team key (overrides LINEAR_TEAM_KEY)",
     )
-    parser.add_argument("--verbose", "-v", action="store_true", help="enable debug logging")
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="enable debug logging, which includes issue titles",
+    )
     return parser
 
 

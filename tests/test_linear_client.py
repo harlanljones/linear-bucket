@@ -84,8 +84,17 @@ class ExecuteTests(unittest.TestCase):
     def test_client_errors_surface(self):
         client = self.build([Response(401, {}, "unauthorized")])
 
-        with self.assertRaises(LinearAPIError):
+        with self.assertRaises(LinearAPIError) as caught:
             client.execute("query { viewer { id } }")
+        self.assertIn("unauthorized", str(caught.exception))
+
+    def test_error_text_is_truncated(self):
+        client = self.build([Response(400, {}, "x" * 5000)])
+
+        with self.assertRaises(LinearAPIError) as caught:
+            client.execute("query { viewer { id } }")
+        self.assertLess(len(str(caught.exception)), 400)
+        self.assertTrue(str(caught.exception).endswith("... (truncated)"))
 
 
 class PaginateTests(unittest.TestCase):
