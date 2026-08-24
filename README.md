@@ -17,8 +17,8 @@ Parent progress
 └── 100% complete
 ```
 
-Group your view by label (`Shift V` → Grouping → Label) and the sections appear
-in progress order, because the zero-padded numeric names sort that way.
+Group your view by that label group and the sections appear in progress order,
+because the zero-padded numeric names sort that way.
 
 Exactly one bucket applies to a parent at a time, and **labels outside the
 managed group are never touched** — the sync uses add/remove mutations rather
@@ -36,23 +36,46 @@ since there is no meaningful progress to report.
 
 Runs are idempotent: a parent already in the right bucket produces no writes.
 
+## Setting up the view
+
+Group your view by the **`Parent progress` label group** — `Shift V` → Grouping
+→ `Parent progress` — not by plain `Label`.
+
+This matters. Grouping by `Label` sections a view by *every* label an issue
+carries, so a parent tagged `bug` shows up under `bug` as well as its progress
+bucket. Grouping by the label group instead uses only that group's labels as
+sections, and Linear enforces
+[one sub-label per group](https://linear.app/docs/project-labels), so each
+parent lands in exactly one. Other label groups become independent dimensions
+that don't fragment the progress view.
+
+The sync can't set this for you — Linear's API doesn't expose view
+configuration — so it warns when it sees parents carrying labels from other
+groups, naming the group to group by.
+
 ## First run
 
-The sync will not create labels behind your back. On a workspace without the
-group it exits with an error telling you to opt in:
+No setup step. The sync creates the label group and any missing buckets when
+they're absent, so a scheduled run against a fresh workspace initializes
+itself:
 
 ```bash
-python -m parent_progress_sync --dry-run --bootstrap-labels   # preview
-python -m parent_progress_sync --bootstrap-labels             # create + apply
+python -m parent_progress_sync --dry-run   # preview, creates nothing
+python -m parent_progress_sync             # create what's missing, then apply
 ```
 
-Bootstrap creates the group and any missing buckets as **workspace** labels
-(not team-scoped), then continues. Later runs need no flag.
+Labels are created at the **workspace** level (not team-scoped), so one group
+serves every team.
 
-Before creating anything it validates that the setup is unambiguous, and
-refuses to run if a bucket name is already taken outside the group, if two
-labels share the group's name, or if the group name belongs to a plain label.
-Fix the collision rather than letting the sync guess which label you meant.
+Self-initializing does not mean permissive. Before creating anything the sync
+validates that the setup is unambiguous, and refuses to run — creating nothing
+— if a bucket name is already taken outside the group, if two labels share the
+group's name, if the group name belongs to a plain label, or if the group is
+nested inside another. Fix the collision rather than letting the sync guess
+which label you meant.
+
+Pass `--no-bootstrap-labels` (or set `LINEAR_BOOTSTRAP_LABELS=false`) to make a
+missing group an error instead — useful if you'd rather manage labels by hand.
 
 ## Configuration
 
@@ -68,7 +91,7 @@ environment, nothing is stored in the repo.
 | `LINEAR_MAX_RETRIES` | no | `5` | Retries for rate-limited/transient failures |
 | `LINEAR_DRY_RUN` | no | `false` | Report changes without writing |
 | `LINEAR_LABEL_GROUP` | no | `Parent progress` | Name of the managed label group |
-| `LINEAR_BOOTSTRAP_LABELS` | no | `false` | Create the group and missing buckets |
+| `LINEAR_BOOTSTRAP_LABELS` | no | `true` | Create the group and missing buckets when absent |
 | `LINEAR_CLEANUP_LEGACY_PREFIXES` | no | `false` | Strip `[042%] ` title prefixes |
 
 ## Usage

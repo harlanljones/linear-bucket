@@ -79,7 +79,7 @@ class ResolveTests(unittest.TestCase):
     def test_missing_group_without_bootstrap_is_an_error(self):
         with self.assertRaises(LabelError) as caught:
             catalog(FakeClient([])).resolve(bootstrap=False, dry_run=False)
-        self.assertIn("--bootstrap-labels", str(caught.exception))
+        self.assertIn("--no-bootstrap-labels", str(caught.exception))
 
     def test_missing_buckets_without_bootstrap_is_an_error(self):
         client = FakeClient([group_label(), bucket_label(BUCKET_NAMES[0])])
@@ -114,6 +114,36 @@ class ResolveTests(unittest.TestCase):
 
         self.assertEqual(client.created, [])
         self.assertTrue(labels.group_id.startswith("<would-create:"))
+
+
+class CollisionsFailEvenWhenBootstrapping(unittest.TestCase):
+    """Self-initializing must not mean papering over an ambiguous workspace."""
+
+    def assert_refuses(self, labels):
+        with self.assertRaises(LabelError):
+            catalog(FakeClient(labels)).resolve(bootstrap=True, dry_run=False)
+
+    def test_duplicate_group_names(self):
+        self.assert_refuses([group_label(), group_label(label_id="group-2")])
+
+    def test_group_name_held_by_plain_label(self):
+        self.assert_refuses([group_label(is_group=False)])
+
+    def test_nested_group(self):
+        self.assert_refuses([group_label(parent={"id": "other", "name": "Somewhere"})])
+
+    def test_bucket_name_taken_outside_the_group(self):
+        self.assert_refuses(
+            [*full_group(), bucket_label(BUCKET_NAMES[0], "loose", parent_id=None)]
+        )
+
+    def test_nothing_is_created_when_validation_fails(self):
+        client = FakeClient([group_label(is_group=False)])
+
+        with self.assertRaises(LabelError):
+            catalog(client).resolve(bootstrap=True, dry_run=False)
+
+        self.assertEqual(client.created, [])
 
 
 class CollisionTests(unittest.TestCase):

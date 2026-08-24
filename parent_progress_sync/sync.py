@@ -29,7 +29,7 @@ query ParentIssues($first: Int!, $after: String, $filter: IssueFilter) {
       title
       labels(first: 100) {
         pageInfo { hasNextPage }
-        nodes { id }
+        nodes { id parent { id } }
       }
       children(first: 250) {
         pageInfo { hasNextPage }
@@ -123,6 +123,10 @@ class SyncReport:
     parents_skipped: int = 0
     changes: list[IssueChange] = field(default_factory=list)
     dry_run: bool = False
+    #: Parents also carrying a label from some other label group. Harmless when
+    #: the view is grouped by the managed group, but they fragment a view
+    #: grouped by plain "Label".
+    parents_in_other_label_groups: int = 0
 
     @property
     def parents_updated(self) -> int:
@@ -141,6 +145,24 @@ class SyncReport:
         if self.titles_cleaned:
             summary += f" ({self.titles_cleaned} legacy prefix(es) removed)"
         return summary
+
+
+def _has_foreign_group_label(
+    labels: Iterable[Mapping[str, Any]], managed: ManagedLabels
+) -> bool:
+    """True if any applied label belongs to a label group other than ours.
+
+    Managed labels are excluded by ID rather than by parent, because a dry run
+    that would have created the group has only a placeholder group ID to
+    compare against.
+    """
+    for label in labels:
+        if str(label.get("id")) in managed.managed_ids:
+            continue
+        parent_id = (label.get("parent") or {}).get("id")
+        if parent_id and parent_id != managed.group_id:
+            return True
+    return False
 
 
 def count_progress(children: Iterable[Mapping[str, Any]]) -> Progress:
@@ -170,7 +192,11 @@ class ProgressSync:
         report = SyncReport(dry_run=self._config.dry_run)
         for parent in self._iter_parents():
             report.parents_scanned += 1
-            change = self._plan_change(parent, labels)
+            applied_labels = self._labels_of(parent)
+            if _has_foreign_group_label(applied_labels, labels):
+                report.parents_in_other_label_groups += 1
+
+            change = self._plan_change(parent, labels, applied_labels)
             if change is None:
                 report.parents_skipped += 1
                 continue
@@ -187,7 +213,27 @@ class ProgressSync:
             report.changes.append(change)
 
         logger.info("%s", report.summary())
+        self._advise_on_grouping(report)
         return report
+
+    def _advise_on_grouping(self, report: SyncReport) -> None:
+        """Point at the view setting that keeps other label groups out of the way.
+
+        Linear enforces one sub-label per group, so the managed buckets are
+        already mutually exclusive. What fragments a progress view is grouping
+        it by plain "Label", which sections by *every* label an issue carries.
+        Grouping by the managed group instead is a view setting, not something
+        the API exposes, so the best the sync can do is flag when it matters.
+        """
+        if not report.parents_in_other_label_groups:
+            return
+        logger.warning(
+            "%d parent(s) also carry labels from other label groups. Group the view by "
+            "the %r label group (Display options -> Grouping) rather than by 'Label', "
+            "so those do not split the progress sections.",
+            report.parents_in_other_label_groups,
+            self._config.label_group,
+        )
 
     def _iter_parents(self) -> Iterator[Mapping[str, Any]]:
         issue_filter: dict[str, Any] = {"children": {"some": {}}}
@@ -201,7 +247,10 @@ class ProgressSync:
         )
 
     def _plan_change(
-        self, parent: Mapping[str, Any], labels: ManagedLabels
+        self,
+        parent: Mapping[str, Any],
+        labels: ManagedLabels,
+        applied_labels: list[Mapping[str, Any]],
     ) -> IssueChange | None:
         progress = count_progress(self._children_of(parent))
 
@@ -213,7 +262,7 @@ class ProgressSync:
             target_name = bucket_for(progress.percent).name
             target_id = labels.id_for(target_name)
 
-        applied = self._label_ids_of(parent)
+        applied = {str(label["id"]) for label in applied_labels}
         managed_applied = applied & labels.managed_ids
         stale = tuple(sorted(managed_applied - {target_id} if target_id else managed_applied))
         needs_add = target_id is not None and target_id not in managed_applied
@@ -256,20 +305,19 @@ class ProgressSync:
             )
         )
 
-    def _label_ids_of(self, parent: Mapping[str, Any]) -> set[str]:
+    def _labels_of(self, parent: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         connection = parent.get("labels") or {}
         if not (connection.get("pageInfo") or {}).get("hasNextPage"):
-            return {str(label["id"]) for label in connection.get("nodes") or []}
+            return list(connection.get("nodes") or [])
 
-        return {
-            str(label["id"])
-            for label in self._client.paginate(
+        return list(
+            self._client.paginate(
                 ISSUE_LABELS_QUERY,
                 {"id": parent["id"]},
                 ("issue", "labels"),
                 page_size=self._config.page_size,
             )
-        }
+        )
 
     def _apply(self, change: IssueChange) -> None:
         # Remove first so an issue is never briefly in two buckets at once.

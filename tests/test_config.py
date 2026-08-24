@@ -18,8 +18,16 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.page_size, 50)
         self.assertFalse(config.dry_run)
         self.assertEqual(config.label_group, "Parent progress")
-        self.assertFalse(config.bootstrap_labels)
+        # On by default so an unattended scheduled run is self-initializing.
+        self.assertTrue(config.bootstrap_labels)
         self.assertFalse(config.cleanup_legacy_prefixes)
+
+    def test_bootstrap_can_be_disabled_by_env(self):
+        config = Config.from_env(
+            {"LINEAR_API_KEY": "lin_api_test", "LINEAR_BOOTSTRAP_LABELS": "false"}
+        )
+
+        self.assertFalse(config.bootstrap_labels)
 
     def test_reads_overrides(self):
         config = Config.from_env(

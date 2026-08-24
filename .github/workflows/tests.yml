@@ -1,8 +1,9 @@
 name: Tests
 
 on:
+  # Unfiltered: this repository's default branch is not named "main", so a
+  # branches filter would silently skip every push.
   push:
-    branches: [main]
   pull_request:
 
 jobs:

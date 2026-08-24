@@ -24,6 +24,11 @@ def children(completed=0, started=0, canceled=0):
     )
 
 
+def applied(label_id_value, group=None):
+    """A label as returned on an issue, optionally inside a label group."""
+    return {"id": label_id_value, "parent": {"id": group} if group else None}
+
+
 def parent(
     issue_id="p1",
     title="Ship login",
@@ -32,14 +37,17 @@ def parent(
     kids_truncated=False,
     labels_truncated=False,
 ):
+    nodes = [
+        value if isinstance(value, dict) else applied(value, GROUP_ID)
+        if value.startswith("label-0") or value.startswith("label-1")
+        else applied(value)
+        for value in labels
+    ]
     return {
         "id": issue_id,
         "identifier": issue_id.upper(),
         "title": title,
-        "labels": {
-            "pageInfo": {"hasNextPage": labels_truncated},
-            "nodes": [{"id": value} for value in labels],
-        },
+        "labels": {"pageInfo": {"hasNextPage": labels_truncated}, "nodes": nodes},
         "children": {"pageInfo": {"hasNextPage": kids_truncated}, "nodes": list(kids)},
     }
 
@@ -314,7 +322,7 @@ class PaginationTests(unittest.TestCase):
     def test_fetches_remaining_labels_when_truncated(self):
         client = FakeClient(
             [parent(kids=children(completed=1), labels_truncated=True)],
-            extra_labels=[{"id": label_id("100% complete")}],
+            extra_labels=[applied(label_id("100% complete"), GROUP_ID)],
         )
 
         report = run(client)
@@ -336,6 +344,67 @@ class PaginationTests(unittest.TestCase):
         self.assertEqual(
             recorded[0], {"children": {"some": {}}, "team": {"key": {"eq": "ENG"}}}
         )
+
+
+class ForeignLabelGroupTests(unittest.TestCase):
+    """Other label groups are counted so the operator can fix the view setting."""
+
+    def test_labels_from_other_groups_are_counted(self):
+        client = FakeClient(
+            [
+                parent(
+                    "p1",
+                    kids=children(completed=1),
+                    labels=[applied("label-p1", "other-group")],
+                ),
+                parent("p2", kids=children(completed=1), labels=[applied(UNRELATED_LABEL)]),
+            ]
+        )
+
+        with self.assertLogs("parent_progress_sync.sync", level="INFO"):
+            report = run(client)
+
+        self.assertEqual(report.parents_in_other_label_groups, 1)
+
+    def test_managed_labels_are_excluded_by_id_not_by_parent(self):
+        # Managed labels are recognised by ID so the check stays correct even
+        # when the group ID is a dry-run placeholder.
+        client = FakeClient(
+            [parent(kids=children(completed=2), labels=[label_id("100% complete")])]
+        )
+
+        report = run(client, dry_run=True)
+
+        self.assertEqual(report.parents_in_other_label_groups, 0)
+
+    def test_managed_labels_are_not_counted_as_foreign(self):
+        client = FakeClient(
+            [parent(kids=children(completed=2), labels=[label_id("100% complete")])]
+        )
+
+        report = run(client)
+
+        self.assertEqual(report.parents_in_other_label_groups, 0)
+
+    def test_warning_names_the_group_to_group_by(self):
+        client = FakeClient(
+            [parent(kids=children(completed=1), labels=[applied("x", "other-group")])]
+        )
+
+        with self.assertLogs("parent_progress_sync.sync", level="WARNING") as logs:
+            run(client)
+
+        message = "\n".join(logs.output)
+        self.assertIn("other label groups", message)
+        self.assertIn("Parent progress", message)
+
+    def test_no_warning_without_foreign_groups(self):
+        client = FakeClient([parent(kids=children(completed=1))])
+
+        with self.assertLogs("parent_progress_sync.sync", level="INFO") as logs:
+            run(client)
+
+        self.assertNotIn("WARNING", "\n".join(logs.output))
 
 
 class LoggingTests(unittest.TestCase):

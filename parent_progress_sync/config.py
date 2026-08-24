@@ -26,7 +26,10 @@ class Config:
     max_retries: int = DEFAULT_MAX_RETRIES
     dry_run: bool = False
     label_group: str = DEFAULT_GROUP_NAME
-    bootstrap_labels: bool = False
+    #: Create the managed group and any missing buckets when they are absent.
+    #: On by default so an unattended scheduled run is self-initializing;
+    #: collisions still fail closed, and a dry run never writes.
+    bootstrap_labels: bool = True
     cleanup_legacy_prefixes: bool = False
 
     @classmethod
@@ -47,7 +50,7 @@ class Config:
             max_retries=_int_env(env, "LINEAR_MAX_RETRIES", DEFAULT_MAX_RETRIES, 0, 20),
             dry_run=_bool_env(env, "LINEAR_DRY_RUN", False),
             label_group=(env.get("LINEAR_LABEL_GROUP") or "").strip() or DEFAULT_GROUP_NAME,
-            bootstrap_labels=_bool_env(env, "LINEAR_BOOTSTRAP_LABELS", False),
+            bootstrap_labels=_bool_env(env, "LINEAR_BOOTSTRAP_LABELS", True),
             cleanup_legacy_prefixes=_bool_env(env, "LINEAR_CLEANUP_LEGACY_PREFIXES", False),
         )
 

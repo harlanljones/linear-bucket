@@ -22,9 +22,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # Bootstrap is deliberately not enabled here: create the label group once
-      # by hand with --bootstrap-labels, so a misconfigured schedule can never
-      # spawn label groups on its own.
+      # The sync creates its own label group when absent, so a scheduled run on
+      # a fresh workspace initializes itself. Genuine collisions still fail the
+      # job, and a dry run creates nothing.
       - name: Run sync
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}

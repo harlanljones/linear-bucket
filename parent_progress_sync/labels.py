@@ -122,8 +122,8 @@ class LabelCatalog:
 
         if not bootstrap:
             raise LabelError(
-                f"No label group named {self._group_name!r} exists. "
-                "Re-run with --bootstrap-labels to create it and its buckets."
+                f"No label group named {self._group_name!r} exists, and label creation "
+                "is disabled (--no-bootstrap-labels)."
             )
         return self._create_label(self._group_name, parent_id=None, dry_run=dry_run)
 
@@ -158,7 +158,8 @@ class LabelCatalog:
         if missing and not bootstrap:
             raise LabelError(
                 f"The label group {self._group_name!r} is missing {len(missing)} bucket(s): "
-                f"{', '.join(missing)}. Re-run with --bootstrap-labels to create them."
+                f"{', '.join(missing)}, and label creation is disabled "
+                "(--no-bootstrap-labels)."
             )
 
         for name in BUCKET_NAMES:

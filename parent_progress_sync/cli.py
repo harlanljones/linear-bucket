@@ -36,8 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--bootstrap-labels",
-        action="store_true",
-        help="create the managed label group and any missing buckets",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "create the managed label group and any missing buckets when absent "
+            "(default: on; --no-bootstrap-labels fails instead)"
+        ),
     )
     parser.add_argument(
         "--cleanup-legacy-prefixes",
@@ -72,8 +76,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = replace(config, team_key=args.team)
     if args.label_group:
         config = replace(config, label_group=args.label_group)
-    if args.bootstrap_labels:
-        config = replace(config, bootstrap_labels=True)
+    if args.bootstrap_labels is not None:
+        config = replace(config, bootstrap_labels=args.bootstrap_labels)
     if args.cleanup_legacy_prefixes:
         config = replace(config, cleanup_legacy_prefixes=True)
 
