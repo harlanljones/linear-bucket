@@ -1,0 +1,30 @@
+name: Parent progress sync
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report changes without writing to Linear"
+        type: boolean
+        default: false
+
+concurrency:
+  group: parent-progress-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run sync
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_KEY: ${{ vars.LINEAR_TEAM_KEY }}
+          LINEAR_DRY_RUN: ${{ inputs.dry_run }}
+        run: python -m parent_progress_sync
