@@ -1,8 +1,10 @@
-"""Progress calculation and title-prefix formatting.
+"""Progress calculation, plus recognition of legacy title prefixes.
 
-The parent-progress view in Linear sorts issues alphabetically by title, so a
-zero-padded percentage prefix (``[042%] Fix login``) makes a descending title
-sort equivalent to a descending progress sort.
+An earlier version of this sync wrote a zero-padded percentage prefix into
+issue titles (``[042%] Fix login``). Linear list views cannot be ordered by
+title, so progress moved to labels (see :mod:`parent_progress_sync.buckets`).
+The prefix helpers remain so the optional cleanup pass can recognise and strip
+titles that version left behind.
 """
 
 from __future__ import annotations
@@ -51,13 +53,6 @@ def compute_percent(completed: int, total: int) -> int:
     return percent
 
 
-def format_prefix(percent: int) -> str:
-    """Render the zero-padded prefix, e.g. ``7`` -> ``"[007%] "``."""
-    if not 0 <= percent <= 100:
-        raise ValueError("percent must be between 0 and 100")
-    return "[{:0{width}d}%] ".format(percent, width=PERCENT_WIDTH)
-
-
 def strip_prefix(title: str) -> str:
     """Remove a previously applied prefix, leaving other titles untouched."""
     return PREFIX_PATTERN.sub("", title, count=1)
@@ -67,8 +62,3 @@ def parse_prefix(title: str) -> int | None:
     """Return the percentage encoded in ``title``, or ``None`` if absent."""
     match = PREFIX_PATTERN.match(title)
     return int(match.group(1)) if match else None
-
-
-def apply_prefix(title: str, percent: int) -> str:
-    """Return ``title`` with exactly one up-to-date progress prefix."""
-    return format_prefix(percent) + strip_prefix(title).strip()

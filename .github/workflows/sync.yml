@@ -22,9 +22,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # Bootstrap is deliberately not enabled here: create the label group once
+      # by hand with --bootstrap-labels, so a misconfigured schedule can never
+      # spawn label groups on its own.
       - name: Run sync
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           LINEAR_TEAM_KEY: ${{ vars.LINEAR_TEAM_KEY }}
+          LINEAR_LABEL_GROUP: ${{ vars.LINEAR_LABEL_GROUP }}
           LINEAR_DRY_RUN: ${{ inputs.dry_run }}
         run: python -m parent_progress_sync

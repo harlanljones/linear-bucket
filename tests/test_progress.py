@@ -2,9 +2,7 @@ import unittest
 
 from parent_progress_sync.progress import (
     Progress,
-    apply_prefix,
     compute_percent,
-    format_prefix,
     parse_prefix,
     strip_prefix,
 )
@@ -40,26 +38,8 @@ class ComputePercentTests(unittest.TestCase):
         self.assertEqual(Progress(completed=1, total=2).percent, 50)
 
 
-class PrefixTests(unittest.TestCase):
-    def test_format_is_zero_padded(self):
-        self.assertEqual(format_prefix(0), "[000%] ")
-        self.assertEqual(format_prefix(7), "[007%] ")
-        self.assertEqual(format_prefix(42), "[042%] ")
-        self.assertEqual(format_prefix(100), "[100%] ")
-
-    def test_format_rejects_out_of_range(self):
-        with self.assertRaises(ValueError):
-            format_prefix(101)
-
-    def test_apply_adds_prefix(self):
-        self.assertEqual(apply_prefix("Ship login", 42), "[042%] Ship login")
-
-    def test_apply_replaces_existing_prefix(self):
-        self.assertEqual(apply_prefix("[007%] Ship login", 42), "[042%] Ship login")
-
-    def test_apply_is_idempotent(self):
-        once = apply_prefix("Ship login", 42)
-        self.assertEqual(apply_prefix(once, 42), once)
+class LegacyPrefixTests(unittest.TestCase):
+    """Prefixes are no longer written, but must still be recognised for cleanup."""
 
     def test_strip_leaves_unprefixed_titles_alone(self):
         self.assertEqual(strip_prefix("Ship login"), "Ship login")
@@ -73,10 +53,6 @@ class PrefixTests(unittest.TestCase):
         self.assertEqual(parse_prefix("[042%] Ship login"), 42)
         self.assertIsNone(parse_prefix("Ship login"))
         self.assertIsNone(parse_prefix("[42%] Ship login"))
-
-    def test_descending_title_sort_matches_descending_progress(self):
-        titles = [apply_prefix(f"Issue {pct}", pct) for pct in (0, 7, 42, 100)]
-        self.assertEqual(sorted(titles, reverse=True), list(reversed(titles)))
 
 
 if __name__ == "__main__":

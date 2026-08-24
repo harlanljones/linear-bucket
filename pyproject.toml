@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "parent-progress-sync"
 version = "1.0.0"
-description = "Sync Linear parent-issue titles with their completed-subissue percentage"
+description = "Group Linear parent issues by completed-subissue percentage using managed labels"
 requires-python = ">=3.10"
 dependencies = []
 

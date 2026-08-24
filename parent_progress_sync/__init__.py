@@ -1,24 +1,33 @@
-"""Keep Linear parent issues sorted by sub-issue completion."""
+"""Group Linear parent issues by sub-issue completion, using managed labels."""
 
+from .buckets import BUCKET_NAMES, BUCKETS, DEFAULT_GROUP_NAME, Bucket, bucket_for
 from .config import Config, ConfigError
+from .labels import LabelCatalog, LabelError, ManagedLabels
 from .linear_client import LinearAPIError, LinearClient, LinearError, RateLimitError
-from .progress import Progress, apply_prefix, compute_percent, format_prefix, strip_prefix
-from .sync import ProgressSync, SyncReport, TitleUpdate, count_progress
+from .progress import Progress, compute_percent, parse_prefix, strip_prefix
+from .sync import IssueChange, ProgressSync, SyncReport, count_progress
 
 __all__ = [
+    "BUCKETS",
+    "BUCKET_NAMES",
+    "DEFAULT_GROUP_NAME",
+    "Bucket",
     "Config",
     "ConfigError",
+    "IssueChange",
+    "LabelCatalog",
+    "LabelError",
     "LinearAPIError",
     "LinearClient",
     "LinearError",
+    "ManagedLabels",
     "Progress",
     "ProgressSync",
     "RateLimitError",
     "SyncReport",
-    "TitleUpdate",
-    "apply_prefix",
+    "bucket_for",
     "compute_percent",
     "count_progress",
-    "format_prefix",
+    "parse_prefix",
     "strip_prefix",
 ]

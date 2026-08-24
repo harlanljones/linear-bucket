@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
+from .buckets import DEFAULT_GROUP_NAME
+
 DEFAULT_API_URL = "https://api.linear.app/graphql"
 DEFAULT_PAGE_SIZE = 50
 DEFAULT_MAX_RETRIES = 5
@@ -23,6 +25,9 @@ class Config:
     page_size: int = DEFAULT_PAGE_SIZE
     max_retries: int = DEFAULT_MAX_RETRIES
     dry_run: bool = False
+    label_group: str = DEFAULT_GROUP_NAME
+    bootstrap_labels: bool = False
+    cleanup_legacy_prefixes: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Config":
@@ -41,6 +46,9 @@ class Config:
             page_size=_int_env(env, "LINEAR_PAGE_SIZE", DEFAULT_PAGE_SIZE, 1, 250),
             max_retries=_int_env(env, "LINEAR_MAX_RETRIES", DEFAULT_MAX_RETRIES, 0, 20),
             dry_run=_bool_env(env, "LINEAR_DRY_RUN", False),
+            label_group=(env.get("LINEAR_LABEL_GROUP") or "").strip() or DEFAULT_GROUP_NAME,
+            bootstrap_labels=_bool_env(env, "LINEAR_BOOTSTRAP_LABELS", False),
+            cleanup_legacy_prefixes=_bool_env(env, "LINEAR_CLEANUP_LEGACY_PREFIXES", False),
         )
 
 
